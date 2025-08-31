@@ -1,0 +1,100 @@
+[project]
+name = "wampum"
+version = "0.0.1"
+description = "Library for writing testable, typed and simple CLI's in Python with zero dependencies 🐍"
+readme = "README.md"
+authors = [
+    { name = "uhryniuk", email = "duhry99@gmail.com" }
+]
+requires-python = ">=3.12"
+license = { file="LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "tox-uv"]
+test = ["pytest", "pytest-cov", "pytest-mock", "pytest-xdist"]
+
+[build-system]
+requires = ["uv_build>=0.8.14,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.mypy]
+strict = "true"  # Enables all strict checks (equivalent to manually enabling multiple flags).
+follow_imports = "silent"  # Suppress import errors
+warn_unused_ignores = "true"  # Warn about unused "# type: ignore" comments
+warn_redundant_casts = "true"  # Detects redundant cast(...) calls.
+no_implicit_optional = "true"  # Disallow implicit optional types when a value is set to None by default
+check_untyped_defs = "true"  # Type-checks function bodies even if the function is not explicitly annotated.
+warn_return_any = "true"  # Warn if the return type is Any
+exclude=[
+    "build/",         # Ignore build artifacts
+    "dist/",          # Ignore distribution files
+    "__pycache__/",   # Ignore Python bytecode cache
+    "venv/",          # Ignore virtual environments
+    ".*\\.egg-info/", # Ignore egg metadata directories
+    "tests/*",        # Ignore tests directory
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = "true"
+
+[[tool.mypy.overrides]]
+check_untyped_defs = "false"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312" 
+exclude = [
+    "build/",         # Ignore build artifacts
+    "dist/",          # Ignore distribution files
+    "__pycache__/",   # Ignore Python bytecode cache
+    "venv/",          # Ignore virtual environments
+    ".*\\.egg-info/", # Ignore egg metadata directories
+]  
+
+[tool.ruff.lint]
+
+select = [
+    # Mandatory rules to adhere to (minimal effort but high impact)
+    "I",  # Ixxx: Isort (import) related issues | https://docs.astral.sh/ruff/rules/#isort-i
+    "F",  # Fxxx: Pyflakes checks (undefined names, unused imports) | https://docs.astral.sh/ruff/rules/#pyflakes-f
+    "COM",  # COMxxx: Trailing commas | https://docs.astral.sh/ruff/rules/#flake8-commas-com
+    "N",  # Nxxx: Naming conventions (snake_case, CamelCase, etc.)
+    "W",  # Wxxx: Pycodestyle warnings | https://docs.astral.sh/ruff/rules/#warning-w
+    "E",  # Exxx: Pycodestyle errors | https://docs.astral.sh/ruff/rules/#error-e
+    "UP",  # UPxxx: Pyupgrade suggestions | https://docs.astral.sh/ruff/rules/#pyupgrade-up
+    "PLE", # PLExxx: Pylint errors | https://docs.astral.sh/ruff/rules/#error-e_1
+    "PLW", # PLWxxx: Pylint warnings | https://docs.astral.sh/ruff/rules/#warning-w_1
+    "ANN", # ANNxxx: Type annotations (flake8-annotations) | https://docs.astral.sh/ruff/rules/#flake8-annotations-ann
+    "G",  # Gxxx: Logging string formatting | https://docs.astral.sh/ruff/rules/#flake8-logging-format-g,
+    "D",  # Dxxx: Pydocstyle (docstring) checks | https://docs.astral.sh/ruff/rules/#pydocstyle-d
+    "B904",  # flake8-bugbear "raise-without-from-inside-except" | https://docs.astral.sh/ruff/rules/raise-without-from-inside-except/#raise-without-from-inside-except-b904
+]
+
+
+ignore = [
+  "COM812",  # Ignore this to prevent conflict with the ruff formatter
+  "D401",  # Disable non-imperative-mood pydocstyle rule
+]
+
+
+[tool.ruff.lint.per-file-ignores]
+"tests/" = [
+    "D1",  # ignore D1XX pydocstyle "missing docstring" checks for tests 
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit_tests"]
+addopts = "--cov=module1 --cov=module2 --cov-branch"
