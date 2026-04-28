@@ -13,9 +13,7 @@ Python 3.12+. Zero runtime dependencies.
 ## Quickstart
 
 ```python
-from dataclasses import dataclass
-from typing import Annotated
-from armature import CLI, Arg
+from armature import CLI, Arg, dataclass, Annotated
 
 @dataclass
 class Greet:
@@ -42,6 +40,12 @@ $ python greet.py Alice -l
 HELLO, ALICE!
 ```
 
+Everything you need comes from a single import line:
+
+```python
+from armature import CLI, Arg, SubCmd, handler, dataclass, field, Annotated
+```
+
 ---
 
 ## How fields map to CLI arguments
@@ -58,11 +62,10 @@ Underscores in field names become hyphens on the CLI (`dry_run` → `--dry-run`)
 
 ### Adding metadata
 
-Use `Annotated[T, Arg(...)]` to attach help text, choices, or a short alias:
+Use `Annotated[T, Arg(...)]` to attach help text, choices, a short alias, and more:
 
 ```python
-from typing import Annotated
-from armature import Arg
+from armature import CLI, Arg, dataclass, Annotated
 
 @dataclass
 class Deploy:
@@ -81,6 +84,13 @@ class Deploy:
 | `choices` | `list` | Restrict input to allowed values |
 | `short` | `str` | Short flag alias, e.g. `"-v"` |
 | `metavar` | `str` | Display name in usage string |
+| `required` | `bool` | Make a named option required (no positional default) |
+| `converter` | `Callable[[str], T]` | Custom type converter / validator |
+| `env` | `str` | Environment variable to read as default |
+| `group` | `str` | Mutually exclusive group name |
+| `hidden` | `bool` | Hide flag from `--help` output |
+| `remainder` | `bool` | Capture all remaining tokens as `list[str]` |
+| `action` | `str` | `"count"` for `-vvv` style; `"append"` for `--tag a --tag b` |
 
 ---
 
@@ -117,7 +127,7 @@ done: 3
 Use `SubCmd` as an annotation marker for arbitrarily deep hierarchies:
 
 ```python
-from armature import SubCmd
+from armature import CLI, SubCmd, dataclass, Annotated
 
 @dataclass
 class Ls:
@@ -169,6 +179,26 @@ result = CLI(App).parse(["--debug", "image", "rm", "nginx"])
 >     cmd: Annotated[A | B, SubCmd]   # required first
 >     verbose: bool = False            # default after
 > ```
+
+### Subcommand name and aliases
+
+Override the CLI token with `__armature_name__` and add aliases with `__armature_aliases__`:
+
+```python
+@dataclass
+class RemoveImage:
+    """Remove a container image."""
+    __armature_name__ = "rm"
+    __armature_aliases__ = ["remove", "del"]
+    name: str
+    def run(self) -> None: print(f"removed {self.name}")
+```
+
+```
+$ prog rm nginx
+$ prog remove nginx    # alias
+$ prog del nginx       # alias
+```
 
 ---
 
@@ -234,7 +264,139 @@ match result:
         rollback(v)
 ```
 
+**Async handlers:** both `run()` methods and `@handler` functions can be `async def`. Armature calls `asyncio.run()` automatically:
+
+```python
+@dataclass
+class Sync:
+    target: str
+
+    async def run(self) -> None:
+        await do_work(self.target)
+
+CLI(Sync).run()
+```
+
 Dispatch priority when using `run()`: registered `@handler` > `run()` method > `RuntimeError`.
+
+---
+
+## Advanced `Arg` features
+
+### Environment variable fallback
+
+```python
+@dataclass
+class Deploy:
+    token: Annotated[str, Arg(env="DEPLOY_TOKEN", help="API token")]
+    env:   Annotated[str, Arg(env="DEPLOY_ENV")] = "staging"
+```
+
+If `DEPLOY_TOKEN` is set in the environment, `--token` becomes optional. Help text automatically shows `(env: DEPLOY_TOKEN)`.
+
+### Required named options
+
+```python
+@dataclass
+class Create:
+    name:   Annotated[str, Arg(required=True, help="resource name")]
+    region: Annotated[str, Arg(required=True, short="-r")]
+```
+
+Produces `--name` and `--region` flags that are required (not positional).
+
+### Custom type converters
+
+```python
+import pathlib
+
+@dataclass
+class Convert:
+    path:  Annotated[pathlib.Path, Arg(converter=pathlib.Path)]
+    upper: Annotated[str, Arg(converter=str.upper)]
+```
+
+Any `Callable[[str], T]` works. Raised `argparse.ArgumentTypeError` messages surface directly in the error output.
+
+### Count action (`-vvv`)
+
+```python
+@dataclass
+class Cmd:
+    verbose: Annotated[int, Arg(short="-v", action="count")] = 0
+```
+
+```
+$ prog -v          # verbose=1
+$ prog -v -v -v    # verbose=3
+$ prog -vvv        # verbose=3
+```
+
+### Append action (`--tag a --tag b`)
+
+```python
+@dataclass
+class Build:
+    tag: Annotated[list[str], Arg(short="-t", action="append")] = field(default_factory=list)
+```
+
+```
+$ prog --tag latest --tag v1.2
+# tag=["latest", "v1.2"]
+```
+
+### Remainder / pass-through args
+
+```python
+@dataclass
+class Run:
+    image: str
+    cmd:   Annotated[list[str], Arg(remainder=True)] = field(default_factory=list)
+```
+
+```
+$ prog ubuntu -- bash -c "echo hi"
+# cmd=["bash", "-c", "echo hi"]
+```
+
+### Hidden flags
+
+```python
+@dataclass
+class Cmd:
+    debug_mode: Annotated[bool, Arg(hidden=True)] = False
+```
+
+The flag is accepted and parsed but does not appear in `--help` output.
+
+### Mutually exclusive groups
+
+```python
+@dataclass
+class Get:
+    output_json: Annotated[bool, Arg(group="fmt")] = False
+    output_yaml: Annotated[bool, Arg(group="fmt")] = False
+```
+
+Passing both flags at once produces an argparse error.
+
+---
+
+## CLI constructor options
+
+```python
+CLI(
+    commands,           # type | list[type]
+    version="1.2.3",    # adds --version / -V flag
+    epilog="See docs.", # text appended to --help output
+)
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `commands` | `type \| list[type]` | Single command class or list of subcommand classes |
+| `version` | `str \| None` | Version string; adds `--version` / `-V` flag |
+| `epilog` | `str \| None` | Extra text printed after the help message |
 
 ---
 
@@ -246,7 +408,7 @@ The `examples/` directory contains three runnable CLIs:
 |---|---|
 | [`examples/greet`](examples/greet/__init__.py) | Single command, `Arg` metadata, short alias |
 | [`examples/task`](examples/task/__init__.py) | Flat subcommands (`add`, `show`, `done`) |
-| [`examples/dock`](examples/dock/__init__.py) | Nested subcommands (`image ls`, `image rm`, `pull`, `push`) |
+| [`examples/dock`](examples/dock/__init__.py) | Nested subcommands, `__armature_name__` overrides |
 
 Run any example from the repo root:
 
@@ -260,7 +422,7 @@ python -m examples.dock image ls --filter ubuntu
 
 ## API reference
 
-### `CLI(commands)`
+### `CLI(commands, *, version=None, epilog=None)`
 
 | Form | Description |
 |---|---|
@@ -282,4 +444,11 @@ Sentinel class. Use as `Annotated[A | B, SubCmd]` to mark a field as a subcomman
 
 ### `@handler(CommandClass)`
 
-Register a callable as the execution handler for a command class. Takes precedence over `run()` methods.
+Register a callable as the execution handler for a command class. Takes precedence over `run()` methods. Supports `async def` handlers.
+
+### Class attributes for subcommand control
+
+| Attribute | Type | Description |
+|---|---|---|
+| `__armature_name__` | `str` | Override the CLI token (default: lowercased class name) |
+| `__armature_aliases__` | `list[str]` | Additional CLI tokens that dispatch to this class |
