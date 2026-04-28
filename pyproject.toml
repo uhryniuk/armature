@@ -1,7 +1,7 @@
 [project]
-name = "wampum"
-version = "0.0.1"
-description = "Library for writing testable, typed and simple CLI's in Python with zero dependencies 🐍"
+name = "armature"
+version = "0.1.0"
+description = "Zero-dependency dataclass-driven CLI builder for Python"
 readme = "README.md"
 authors = [
     { name = "uhryniuk", email = "duhry99@gmail.com" }
@@ -36,12 +36,13 @@ no_implicit_optional = "true"  # Disallow implicit optional types when a value i
 check_untyped_defs = "true"  # Type-checks function bodies even if the function is not explicitly annotated.
 warn_return_any = "true"  # Warn if the return type is Any
 exclude=[
-    "build/",         # Ignore build artifacts
-    "dist/",          # Ignore distribution files
-    "__pycache__/",   # Ignore Python bytecode cache
-    "venv/",          # Ignore virtual environments
-    ".*\\.egg-info/", # Ignore egg metadata directories
-    "tests/*",        # Ignore tests directory
+    "build/",
+    "dist/",
+    "__pycache__/",
+    "venv/",
+    ".*\\.egg-info/",
+    "tests/",
+    "examples/",
 ]
 
 [[tool.mypy.overrides]]
@@ -96,5 +97,5 @@ ignore = [
 convention = "google"
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit_tests"]
-addopts = "--cov=module1 --cov=module2 --cov-branch"
+testpaths = ["tests"]
+addopts = "--cov=armature --cov-branch"
