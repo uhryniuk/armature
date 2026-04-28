@@ -98,4 +98,9 @@ convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=armature --cov-branch"
+addopts = "--cov=armature --cov-branch -q"
+markers = [
+    "unit: isolated unit tests, no I/O",
+    "functional: in-process parse and run tests",
+    "e2e: subprocess invocation tests",
+]
