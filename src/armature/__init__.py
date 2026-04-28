@@ -9,7 +9,8 @@ import argparse
 import dataclasses
 import inspect
 import types as _builtin_types
-from typing import Annotated, Any, Callable, TypeVar, Union, get_args, get_origin, get_type_hints
+from collections.abc import Callable
+from typing import Annotated, Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 

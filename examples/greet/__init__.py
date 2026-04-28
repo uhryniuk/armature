@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Annotated
 
-from armature import Arg, CLI
+from armature import CLI, Arg
 
 
 @dataclass

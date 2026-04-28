@@ -5,8 +5,7 @@ from typing import Annotated
 
 import pytest
 
-from armature import CLI, Arg, SubCmd
-
+from armature import CLI, SubCmd
 
 # ---------------------------------------------------------------------------
 # Flat subcommands  CLI([A, B])

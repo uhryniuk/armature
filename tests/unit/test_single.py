@@ -1,11 +1,11 @@
 """Unit tests for single-command CLI.parse()."""
 
 import dataclasses
-from typing import Annotated, Optional
+from typing import Annotated
 
 import pytest
 
-from armature import Arg, CLI
+from armature import CLI, Arg
 
 
 @pytest.mark.unit
@@ -125,7 +125,7 @@ def test_help_exits_zero() -> None:
 def test_optional_type_default_none() -> None:
     @dataclasses.dataclass
     class Cmd:
-        name: Optional[str] = None
+        name: str | None = None
 
     assert CLI(Cmd).parse([]).name is None
 
@@ -134,7 +134,7 @@ def test_optional_type_default_none() -> None:
 def test_optional_type_provided() -> None:
     @dataclasses.dataclass
     class Cmd:
-        name: Optional[str] = None
+        name: str | None = None
 
     assert CLI(Cmd).parse(["--name", "Alice"]).name == "Alice"
 

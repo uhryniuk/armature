@@ -89,12 +89,16 @@ ignore = [
 
 
 [tool.ruff.lint.per-file-ignores]
-"tests/" = [
-    "D1",   # missing docstring checks not required in tests
+"tests/**" = [
+    "D1",     # missing docstring checks not required in tests
+    "ANN401", # Any annotations acceptable in test helpers and fixtures
 ]
-"examples/" = [
-    "D1",   # examples prioritise readability over docstrings
-    "ANN",  # type annotations optional in example code
+"examples/**" = [
+    "D",      # examples prioritise readability over docstrings
+    "ANN",    # type annotations optional in example code
+]
+"src/armature/__init__.py" = [
+    "ANN401", # Any is intentional in type-introspection helpers
 ]
 
 [tool.ruff.lint.pydocstyle]

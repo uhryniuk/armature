@@ -20,7 +20,7 @@ def _make_runner(module: str) -> Callable[..., subprocess.CompletedProcess[str]]
         env["PYTHONPATH"] = f"{REPO_ROOT}:{existing}" if existing else str(REPO_ROOT)
         return subprocess.run(
             [sys.executable, "-m", module, *args],
-            capture_output=True,
+            check=False, capture_output=True,
             text=True,
             env=env,
             cwd=str(REPO_ROOT),
