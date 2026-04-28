@@ -187,3 +187,77 @@ def test_three_level_defaults_respected() -> None:
 def test_three_level_missing_leaf_exits() -> None:
     with pytest.raises(SystemExit):
         CLI(Foo).parse(["bar"])
+
+
+# ---------------------------------------------------------------------------
+# T28 — __armature_name__ subcommand name override
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class GetCredentials:
+    """Get cluster credentials."""
+
+    __armature_name__ = "get-credentials"
+    cluster: str
+
+
+@dataclasses.dataclass
+class SetContext:
+    """Switch active context."""
+
+    __armature_name__ = "set-context"
+    name: str
+
+
+@dataclasses.dataclass
+class KubeRoot:
+    """kubectl-like root."""
+
+    cmd: Annotated[GetCredentials | SetContext, SubCmd]
+
+
+@pytest.mark.unit
+def test_armature_name_hyphenated_parse() -> None:
+    result = CLI(KubeRoot).parse(["get-credentials", "my-cluster"])
+    assert isinstance(result.cmd, GetCredentials)
+    assert result.cmd.cluster == "my-cluster"
+
+
+@pytest.mark.unit
+def test_armature_name_second_command() -> None:
+    result = CLI(KubeRoot).parse(["set-context", "prod"])
+    assert isinstance(result.cmd, SetContext)
+    assert result.cmd.name == "prod"
+
+
+@pytest.mark.unit
+def test_armature_name_class_name_not_accepted() -> None:
+    with pytest.raises(SystemExit):
+        CLI(KubeRoot).parse(["getcredentials", "my-cluster"])
+
+
+@pytest.mark.unit
+def test_no_armature_name_falls_back_to_lowercase() -> None:
+    @dataclasses.dataclass
+    class MyCommand:
+        value: str
+
+    @dataclasses.dataclass
+    class Root:
+        cmd: Annotated[MyCommand, SubCmd]
+
+    result = CLI(Root).parse(["mycommand", "hello"])
+    assert result.cmd.value == "hello"
+
+
+@pytest.mark.unit
+def test_armature_name_flat_multi() -> None:
+    @dataclasses.dataclass
+    class GetAll:
+        __armature_name__ = "get-all"
+        resource: str
+
+    result = CLI([GetAll]).parse(["get-all", "pods"])
+    assert isinstance(result, GetAll)
+    assert result.resource == "pods"

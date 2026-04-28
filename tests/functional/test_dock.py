@@ -3,7 +3,7 @@
 import pytest
 
 from armature import CLI
-from examples.dock import Dock, Image, Ls, Pull, Push, Rm
+from examples.dock import Dock, Image, ListImages, Pull, Push, RemoveImage
 
 
 @pytest.mark.functional
@@ -61,7 +61,7 @@ def test_dock_parse_returns_full_tree() -> None:
     result = CLI(Dock).parse(["image", "rm", "ubuntu"])
     assert isinstance(result, Dock)
     assert isinstance(result.cmd, Image)
-    assert isinstance(result.cmd.cmd, Rm)
+    assert isinstance(result.cmd.cmd, RemoveImage)
     assert result.cmd.cmd.name == "ubuntu"
 
 
@@ -83,5 +83,5 @@ def test_dock_parse_push_branch() -> None:
 def test_dock_parse_ls_branch() -> None:
     result = CLI(Dock).parse(["image", "ls", "--filter", "alpine"])
     assert isinstance(result.cmd, Image)
-    assert isinstance(result.cmd.cmd, Ls)
+    assert isinstance(result.cmd.cmd, ListImages)
     assert result.cmd.cmd.filter == "alpine"

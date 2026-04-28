@@ -7,8 +7,10 @@ from armature import CLI, SubCmd
 
 
 @dataclass
-class Ls:
+class ListImages:
     """List images."""
+
+    __armature_name__ = "ls"
 
     filter: str = ""
 
@@ -18,8 +20,10 @@ class Ls:
 
 
 @dataclass
-class Rm:
+class RemoveImage:
     """Remove an image."""
+
+    __armature_name__ = "rm"
 
     name: str
     force: bool = False
@@ -33,7 +37,7 @@ class Rm:
 class Image:
     """Manage images."""
 
-    cmd: Annotated[Ls | Rm, SubCmd]
+    cmd: Annotated[ListImages | RemoveImage, SubCmd]
 
     def run(self) -> None:
         self.cmd.run()

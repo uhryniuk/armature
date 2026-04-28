@@ -114,6 +114,11 @@ def _union_members(type_: Any) -> list[type]:
     return [type_]
 
 
+def _subcmd_name(cls: type) -> str:
+    """Return the CLI subcommand token for a class, honouring __armature_name__ overrides."""
+    return getattr(cls, "__armature_name__", cls.__name__.lower())
+
+
 def _field_cli_name(name: str) -> str:
     """Convert field name underscores to hyphens for CLI flags."""
     return name.replace("_", "-")
@@ -239,7 +244,7 @@ def _add_subparsers(
     subparsers = parser.add_subparsers(dest=dest, required=True)
     for member_cls in _union_members(type_):
         sub = subparsers.add_parser(
-            member_cls.__name__.lower(),
+            _subcmd_name(member_cls),
             description=inspect.getdoc(member_cls),
         )
         _build_parser(sub, member_cls)
@@ -257,7 +262,7 @@ def _reconstruct(cls: type, namespace: dict[str, Any]) -> Any:
             chosen_name = namespace.pop(dest)
             chosen_cls = next(
                 c for c in _union_members(resolved.real_type)
-                if c.__name__.lower() == chosen_name
+                if _subcmd_name(c) == chosen_name
             )
             init_kwargs[field.name] = _reconstruct(chosen_cls, namespace)
         else:
@@ -341,13 +346,13 @@ class CLI:
             if not dataclasses.is_dataclass(cls):
                 raise TypeError(f"{cls.__name__} must be decorated with @dataclass")
             sub = subparsers.add_parser(
-                cls.__name__.lower(),
+                _subcmd_name(cls),
                 description=inspect.getdoc(cls),
             )
             _build_parser(sub, cls)
         namespace = vars(root.parse_args(argv))
         chosen_name = namespace.pop("_root_cmd")
         chosen_cls = next(
-            c for c in self._commands if c.__name__.lower() == chosen_name
+            c for c in self._commands if _subcmd_name(c) == chosen_name
         )
         return _reconstruct(chosen_cls, namespace)
