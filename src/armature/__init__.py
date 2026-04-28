@@ -304,7 +304,8 @@ class CLI:
         result = self.parse(argv)
         cls = type(result)
         if cls in _handler_registry:
-            _handler_registry[cls](result)
+            fn = _handler_registry[cls]
+            fn()(result) if isinstance(fn, type) else fn(result)
             return
         if hasattr(result, "run"):
             result.run()
