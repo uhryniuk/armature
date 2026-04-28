@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 __version__ = "0.1.0"
-__all__ = ["CLI", "Arg", "SubCmd", "handler"]
+__all__ = ["CLI", "Arg", "SubCmd", "handler", "dataclass", "field", "Annotated"]
 
 import argparse
+import asyncio
 import dataclasses
 import inspect
 import os
 import types as _builtin_types
 from collections.abc import Callable
+from dataclasses import dataclass as dataclass
+from dataclasses import field as field
 from typing import Annotated, Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -38,6 +41,9 @@ class Arg:
     converter: Callable[[str], Any] | None = None
     env: str | None = None
     group: str | None = None
+    hidden: bool = False
+    remainder: bool = False
+    action: str | None = None
 
 
 class SubCmd:
@@ -122,6 +128,11 @@ def _subcmd_name(cls: type) -> str:
     return getattr(cls, "__armature_name__", cls.__name__.lower())
 
 
+def _subcmd_aliases(cls: type) -> list[str]:
+    """Return the CLI alias tokens for a class from __armature_aliases__."""
+    return getattr(cls, "__armature_aliases__", [])
+
+
 def _field_cli_name(name: str) -> str:
     """Convert field name underscores to hyphens for CLI flags."""
     return name.replace("_", "-")
@@ -148,11 +159,14 @@ def _add_field(
 
     kwargs: dict[str, Any] = {}
     if meta:
-        help_text = meta.help
-        if meta.env:
-            help_text = f"{help_text} (env: {meta.env})" if help_text else f"env: {meta.env}"
-        if help_text:
-            kwargs["help"] = help_text
+        if meta.hidden:
+            kwargs["help"] = argparse.SUPPRESS
+        else:
+            help_text = meta.help
+            if meta.env:
+                help_text = f"{help_text} (env: {meta.env})" if help_text else f"env: {meta.env}"
+            if help_text:
+                kwargs["help"] = help_text
         if meta.choices is not None:
             kwargs["choices"] = meta.choices
         if meta.metavar:
@@ -184,6 +198,34 @@ def _add_field(
                 except (ValueError, TypeError):
                     env_default = raw
             has_default = True
+
+    if meta and meta.remainder:
+        kwargs["nargs"] = argparse.REMAINDER
+        parser.add_argument(field.name, **kwargs)
+        return
+
+    if meta and meta.action == "count":
+        cli_name = _field_cli_name(field.name)
+        flags = [f"--{cli_name}"]
+        if meta.short:
+            flags.insert(0, meta.short)
+        count_kw: dict[str, Any] = {"action": "count", "default": 0, "dest": field.name}
+        if "help" in kwargs:
+            count_kw["help"] = kwargs["help"]
+        parser.add_argument(*flags, **count_kw)
+        return
+
+    if meta and meta.action == "append":
+        inner: Any = get_args(real_type)[0] if get_args(real_type) else str
+        cli_name = _field_cli_name(field.name)
+        flags = [f"--{cli_name}"]
+        if meta.short:
+            flags.insert(0, meta.short)
+        append_kw: dict[str, Any] = {"action": "append", "type": inner, "default": [], "dest": field.name}
+        if "help" in kwargs:
+            append_kw["help"] = kwargs["help"]
+        parser.add_argument(*flags, **append_kw)
+        return
 
     if get_origin(real_type) is list:
         _add_list_field(parser, field, meta, real_type, kwargs, has_default)
@@ -262,21 +304,21 @@ def _build_parser(parser: argparse.ArgumentParser, cls: type) -> None:
     """Populate an ArgumentParser from a dataclass's annotated fields."""
     hints = get_type_hints(cls, include_extras=True)
     exclusive_groups: dict[str, argparse._MutuallyExclusiveGroup] = {}
-    for field in dataclasses.fields(cls):
-        annotation = hints.get(field.name, field.type)
+    for fld in dataclasses.fields(cls):
+        annotation = hints.get(fld.name, fld.type)
         resolved = _resolve_annotation(annotation)
         if resolved.arg_meta and resolved.arg_meta.group:
             name = resolved.arg_meta.group
             if name not in exclusive_groups:
                 exclusive_groups[name] = parser.add_mutually_exclusive_group()
-    for field in dataclasses.fields(cls):
-        annotation = hints.get(field.name, field.type)
+    for fld in dataclasses.fields(cls):
+        annotation = hints.get(fld.name, fld.type)
         resolved = _resolve_annotation(annotation)
         if resolved.is_subcmd:
-            dest = f"_sub_{cls.__name__.lower()}_{field.name}"
+            dest = f"_sub_{cls.__name__.lower()}_{fld.name}"
             _add_subparsers(parser, resolved.real_type, dest)
         else:
-            _add_field(parser, field, resolved, exclusive_groups)
+            _add_field(parser, fld, resolved, exclusive_groups)
 
 
 def _add_subparsers(
@@ -289,6 +331,7 @@ def _add_subparsers(
     for member_cls in _union_members(type_):
         sub = subparsers.add_parser(
             _subcmd_name(member_cls),
+            aliases=_subcmd_aliases(member_cls),
             description=inspect.getdoc(member_cls),
         )
         _build_parser(sub, member_cls)
@@ -298,19 +341,19 @@ def _reconstruct(cls: type, namespace: dict[str, Any]) -> Any:
     """Instantiate cls from a flat namespace dict, recursing into SubCmd fields."""
     hints = get_type_hints(cls, include_extras=True)
     init_kwargs: dict[str, Any] = {}
-    for field in dataclasses.fields(cls):
-        annotation = hints.get(field.name, field.type)
+    for fld in dataclasses.fields(cls):
+        annotation = hints.get(fld.name, fld.type)
         resolved = _resolve_annotation(annotation)
         if resolved.is_subcmd:
-            dest = f"_sub_{cls.__name__.lower()}_{field.name}"
+            dest = f"_sub_{cls.__name__.lower()}_{fld.name}"
             chosen_name = namespace.pop(dest)
             chosen_cls = next(
                 c for c in _union_members(resolved.real_type)
-                if _subcmd_name(c) == chosen_name
+                if _subcmd_name(c) == chosen_name or chosen_name in _subcmd_aliases(c)
             )
-            init_kwargs[field.name] = _reconstruct(chosen_cls, namespace)
+            init_kwargs[fld.name] = _reconstruct(chosen_cls, namespace)
         else:
-            init_kwargs[field.name] = namespace.pop(field.name)
+            init_kwargs[fld.name] = namespace.pop(fld.name)
     return cls(**init_kwargs)
 
 
@@ -333,7 +376,12 @@ class CLI:
         CLI(Docker).parse()
     """
 
-    def __init__(self, commands: type | list[type]) -> None:
+    def __init__(
+        self,
+        commands: type | list[type],
+        version: str | None = None,
+        epilog: str | None = None,
+    ) -> None:
         """Create a CLI from a single command class or a list of subcommand classes."""
         if isinstance(commands, list):
             if not commands:
@@ -345,6 +393,8 @@ class CLI:
             self._is_multi = False
             self._commands = []
             self._single_cls = commands
+        self._version = version
+        self._epilog = epilog
 
     def parse(self, argv: list[str] | None = None) -> Any:
         """Parse argv (or sys.argv when None) and return a typed dataclass instance."""
@@ -365,10 +415,14 @@ class CLI:
         cls = type(result)
         if cls in _handler_registry:
             fn = _handler_registry[cls]
-            fn()(result) if isinstance(fn, type) else fn(result)
+            retval = fn()(result) if isinstance(fn, type) else fn(result)
+            if inspect.iscoroutine(retval):
+                asyncio.run(retval)
             return
         if hasattr(result, "run"):
-            result.run()
+            retval = result.run()
+            if inspect.iscoroutine(retval):
+                asyncio.run(retval)
             return
         raise RuntimeError(
             f"No handler for {cls.__name__}. "
@@ -378,25 +432,31 @@ class CLI:
     def _parse_single(self, cls: type, argv: list[str] | None) -> Any:
         if not dataclasses.is_dataclass(cls):
             raise TypeError(f"{cls.__name__} must be decorated with @dataclass")
-        parser = argparse.ArgumentParser(description=inspect.getdoc(cls))
+        parser = argparse.ArgumentParser(description=inspect.getdoc(cls), epilog=self._epilog)
+        if self._version:
+            parser.add_argument("--version", "-V", action="version", version=self._version)
         _build_parser(parser, cls)
         namespace = vars(parser.parse_args(argv))
         return _reconstruct(cls, namespace)
 
     def _parse_multi(self, argv: list[str] | None) -> Any:
-        root = argparse.ArgumentParser()
+        root = argparse.ArgumentParser(epilog=self._epilog)
+        if self._version:
+            root.add_argument("--version", "-V", action="version", version=self._version)
         subparsers = root.add_subparsers(dest="_root_cmd", required=True)
         for cls in self._commands:
             if not dataclasses.is_dataclass(cls):
                 raise TypeError(f"{cls.__name__} must be decorated with @dataclass")
             sub = subparsers.add_parser(
                 _subcmd_name(cls),
+                aliases=_subcmd_aliases(cls),
                 description=inspect.getdoc(cls),
             )
             _build_parser(sub, cls)
         namespace = vars(root.parse_args(argv))
         chosen_name = namespace.pop("_root_cmd")
         chosen_cls = next(
-            c for c in self._commands if _subcmd_name(c) == chosen_name
+            c for c in self._commands
+            if _subcmd_name(c) == chosen_name or chosen_name in _subcmd_aliases(c)
         )
         return _reconstruct(chosen_cls, namespace)

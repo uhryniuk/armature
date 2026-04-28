@@ -351,3 +351,229 @@ def test_env_var_help_text_annotation() -> None:
         with contextlib.redirect_stdout(buf):
             CLI(Cmd).parse(["--help"])
     assert "KUBECTL_NS" in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Hidden flags
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_hidden_flag_absent_from_help() -> None:
+    import contextlib
+    import io
+
+    @dataclasses.dataclass
+    class Cmd:
+        secret: Annotated[str, Arg(hidden=True)] = "default"
+
+    buf = io.StringIO()
+    with pytest.raises(SystemExit):
+        with contextlib.redirect_stdout(buf):
+            CLI(Cmd).parse(["--help"])
+    assert "--secret" not in buf.getvalue()
+
+
+@pytest.mark.unit
+def test_hidden_flag_still_accepted() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        secret: Annotated[str, Arg(hidden=True)] = "default"
+
+    assert CLI(Cmd).parse(["--secret", "shhh"]).secret == "shhh"
+
+
+# ---------------------------------------------------------------------------
+# Remainder / pass-through args
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_remainder_captures_passthrough() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        extra: Annotated[list[str], Arg(remainder=True)]
+
+    result = CLI(Cmd).parse(["--", "python", "-m", "pytest", "-x"])
+    assert result.extra == ["--", "python", "-m", "pytest", "-x"]
+
+
+@pytest.mark.unit
+def test_remainder_empty_when_nothing_follows() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        extra: Annotated[list[str], Arg(remainder=True)]
+
+    assert CLI(Cmd).parse([]).extra == []
+
+
+# ---------------------------------------------------------------------------
+# Count action
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_count_single() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        verbose: Annotated[int, Arg(short="-v", action="count")] = 0
+
+    assert CLI(Cmd).parse(["-v"]).verbose == 1
+
+
+@pytest.mark.unit
+def test_count_stacked() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        verbose: Annotated[int, Arg(short="-v", action="count")] = 0
+
+    assert CLI(Cmd).parse(["-v", "-v", "-v"]).verbose == 3
+
+
+@pytest.mark.unit
+def test_count_default_zero() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        verbose: Annotated[int, Arg(short="-v", action="count")] = 0
+
+    assert CLI(Cmd).parse([]).verbose == 0
+
+
+@pytest.mark.unit
+def test_count_long_flag() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        verbose: Annotated[int, Arg(action="count")] = 0
+
+    assert CLI(Cmd).parse(["--verbose", "--verbose"]).verbose == 2
+
+
+# ---------------------------------------------------------------------------
+# Append action
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_append_multiple_flags() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        tag: Annotated[list[str], Arg(action="append")]
+
+    result = CLI(Cmd).parse(["--tag", "a", "--tag", "b", "--tag", "c"])
+    assert result.tag == ["a", "b", "c"]
+
+
+@pytest.mark.unit
+def test_append_short_alias() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        tag: Annotated[list[str], Arg(short="-t", action="append")]
+
+    result = CLI(Cmd).parse(["-t", "x", "-t", "y"])
+    assert result.tag == ["x", "y"]
+
+
+@pytest.mark.unit
+def test_append_default_empty() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        tag: Annotated[list[str], Arg(action="append")]
+
+    assert CLI(Cmd).parse([]).tag == []
+
+
+# ---------------------------------------------------------------------------
+# Version flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_version_flag_exits_zero() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        name: str
+
+    with pytest.raises(SystemExit) as exc:
+        CLI(Cmd, version="1.2.3").parse(["--version"])
+    assert exc.value.code == 0
+
+
+@pytest.mark.unit
+def test_version_short_flag() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        name: str
+
+    with pytest.raises(SystemExit) as exc:
+        CLI(Cmd, version="0.9.0").parse(["-V"])
+    assert exc.value.code == 0
+
+
+@pytest.mark.unit
+def test_version_in_output(capsys: pytest.CaptureFixture[str]) -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        name: str
+
+    with pytest.raises(SystemExit):
+        CLI(Cmd, version="3.1.4").parse(["--version"])
+    assert "3.1.4" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Epilog
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_epilog_in_help_output() -> None:
+    import contextlib
+    import io
+
+    @dataclasses.dataclass
+    class Cmd:
+        name: str
+
+    buf = io.StringIO()
+    with pytest.raises(SystemExit):
+        with contextlib.redirect_stdout(buf):
+            CLI(Cmd, epilog="See also: https://example.com").parse(["--help"])
+    assert "See also: https://example.com" in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Import UX — re-exports
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_dataclass_re_export() -> None:
+    from armature import dataclass  # noqa: PLC0415
+
+    @dataclass
+    class Cmd:
+        name: str
+
+    assert CLI(Cmd).parse(["Alice"]).name == "Alice"
+
+
+@pytest.mark.unit
+def test_field_re_export() -> None:
+    from armature import dataclass, field  # noqa: PLC0415
+
+    @dataclass
+    class Cmd:
+        items: list[str] = field(default_factory=list)
+
+    assert CLI(Cmd).parse([]).items == []
+
+
+@pytest.mark.unit
+def test_annotated_re_export() -> None:
+    from armature import Annotated  # noqa: PLC0415
+
+    @dataclasses.dataclass
+    class Cmd:
+        verbose: Annotated[bool, Arg(short="-v")] = False
+
+    assert CLI(Cmd).parse(["-v"]).verbose is True

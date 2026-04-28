@@ -145,3 +145,35 @@ def test_run_subcommand_with_handler(capsys: pytest.CaptureFixture[str]) -> None
 
     CLI([Deploy]).run(["deploy", "prod"])
     assert capsys.readouterr().out == "deploying to prod\n"
+
+
+# ---------------------------------------------------------------------------
+# Async handlers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_async_run_method(capsys: pytest.CaptureFixture[str]) -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        name: str
+
+        async def run(self) -> None:
+            print(f"async hello {self.name}")
+
+    CLI(Cmd).run(["Alice"])
+    assert capsys.readouterr().out == "async hello Alice\n"
+
+
+@pytest.mark.unit
+def test_async_handler_function(capsys: pytest.CaptureFixture[str]) -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        name: str
+
+    @handler(Cmd)
+    async def _h(cmd: Cmd) -> None:
+        print(f"async handler {cmd.name}")
+
+    CLI(Cmd).run(["Bob"])
+    assert capsys.readouterr().out == "async handler Bob\n"

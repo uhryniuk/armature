@@ -261,3 +261,61 @@ def test_armature_name_flat_multi() -> None:
     result = CLI([GetAll]).parse(["get-all", "pods"])
     assert isinstance(result, GetAll)
     assert result.resource == "pods"
+
+
+# ---------------------------------------------------------------------------
+# Command aliases  __armature_aliases__
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class Remove:
+    """Remove a resource."""
+
+    __armature_aliases__ = ["rm", "del"]
+    name: str
+
+
+@dataclasses.dataclass
+class AliasRoot:
+    """Root with aliases."""
+
+    cmd: Annotated[Remove, SubCmd]
+
+
+@pytest.mark.unit
+def test_alias_dispatches_to_correct_class() -> None:
+    result = CLI(AliasRoot).parse(["rm", "nginx"])
+    assert isinstance(result.cmd, Remove)
+    assert result.cmd.name == "nginx"
+
+
+@pytest.mark.unit
+def test_second_alias_also_dispatches() -> None:
+    result = CLI(AliasRoot).parse(["del", "nginx"])
+    assert isinstance(result.cmd, Remove)
+    assert result.cmd.name == "nginx"
+
+
+@pytest.mark.unit
+def test_canonical_name_still_works_with_aliases() -> None:
+    result = CLI(AliasRoot).parse(["remove", "nginx"])
+    assert isinstance(result.cmd, Remove)
+
+
+@pytest.mark.unit
+def test_aliases_flat_multi() -> None:
+    @dataclasses.dataclass
+    class Deploy:
+        __armature_aliases__ = ["dep"]
+        env: str
+
+    result = CLI([Deploy]).parse(["dep", "prod"])
+    assert isinstance(result, Deploy)
+    assert result.env == "prod"
+
+
+@pytest.mark.unit
+def test_unknown_alias_still_exits() -> None:
+    with pytest.raises(SystemExit):
+        CLI(AliasRoot).parse(["noop", "nginx"])
