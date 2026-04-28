@@ -37,6 +37,7 @@ class Arg:
     required: bool = False
     converter: Callable[[str], Any] | None = None
     env: str | None = None
+    group: str | None = None
 
 
 class SubCmd:
@@ -139,6 +140,7 @@ def _add_field(
     parser: argparse.ArgumentParser,
     field: dataclasses.Field[Any],
     resolved: _Resolved,
+    exclusive_groups: dict[str, argparse._MutuallyExclusiveGroup] | None = None,
 ) -> None:
     """Register a single dataclass field onto an argparse parser."""
     real_type: Any = resolved.real_type
@@ -220,7 +222,12 @@ def _add_field(
         else:
             kwargs["default"] = field.default if field.default is not dataclasses.MISSING else None
 
-    parser.add_argument(*flags, **kwargs)
+    target: argparse.ArgumentParser | argparse._MutuallyExclusiveGroup = (
+        exclusive_groups[meta.group]
+        if exclusive_groups and meta and meta.group and meta.group in exclusive_groups
+        else parser
+    )
+    target.add_argument(*flags, **kwargs)
 
 
 def _add_list_field(
@@ -254,6 +261,14 @@ def _add_list_field(
 def _build_parser(parser: argparse.ArgumentParser, cls: type) -> None:
     """Populate an ArgumentParser from a dataclass's annotated fields."""
     hints = get_type_hints(cls, include_extras=True)
+    exclusive_groups: dict[str, argparse._MutuallyExclusiveGroup] = {}
+    for field in dataclasses.fields(cls):
+        annotation = hints.get(field.name, field.type)
+        resolved = _resolve_annotation(annotation)
+        if resolved.arg_meta and resolved.arg_meta.group:
+            name = resolved.arg_meta.group
+            if name not in exclusive_groups:
+                exclusive_groups[name] = parser.add_mutually_exclusive_group()
     for field in dataclasses.fields(cls):
         annotation = hints.get(field.name, field.type)
         resolved = _resolve_annotation(annotation)
@@ -261,7 +276,7 @@ def _build_parser(parser: argparse.ArgumentParser, cls: type) -> None:
             dest = f"_sub_{cls.__name__.lower()}_{field.name}"
             _add_subparsers(parser, resolved.real_type, dest)
         else:
-            _add_field(parser, field, resolved)
+            _add_field(parser, field, resolved, exclusive_groups)
 
 
 def _add_subparsers(
