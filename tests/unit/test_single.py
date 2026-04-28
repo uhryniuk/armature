@@ -224,3 +224,63 @@ def test_returns_typed_instance() -> None:
 
     result = CLI(Cmd).parse(["Alice"])
     assert isinstance(result, Cmd)
+
+
+# ---------------------------------------------------------------------------
+# T27 — required named options + custom converter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_required_named_becomes_flag() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(required=True)]
+        resource: str
+
+    result = CLI(Cmd).parse(["--namespace", "default", "pods"])
+    assert result.namespace == "default"
+    assert result.resource == "pods"
+
+
+@pytest.mark.unit
+def test_required_named_missing_exits() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(required=True)]
+
+    with pytest.raises(SystemExit):
+        CLI(Cmd).parse([])
+
+
+@pytest.mark.unit
+def test_required_named_short_alias() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(required=True, short="-n")]
+
+    assert CLI(Cmd).parse(["-n", "kube-system"]).namespace == "kube-system"
+    assert CLI(Cmd).parse(["--namespace", "default"]).namespace == "default"
+
+
+@pytest.mark.unit
+def test_converter_positional() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        count: Annotated[str, Arg(converter=int)]
+
+    result = CLI(Cmd).parse(["42"])
+    assert result.count == 42
+    assert isinstance(result.count, int)
+
+
+@pytest.mark.unit
+def test_converter_json_loads() -> None:
+    import json
+
+    @dataclasses.dataclass
+    class Cmd:
+        data: Annotated[str, Arg(converter=json.loads)]
+
+    result = CLI(Cmd).parse(['{"key": "value"}'])
+    assert result.data == {"key": "value"}

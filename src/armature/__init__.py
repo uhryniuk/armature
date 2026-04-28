@@ -33,6 +33,8 @@ class Arg:
     choices: list[Any] | None = None
     short: str | None = None
     metavar: str | None = None
+    required: bool = False
+    converter: Callable[[str], Any] | None = None
 
 
 class SubCmd:
@@ -154,8 +156,13 @@ def _add_field(
         _add_list_field(parser, field, meta, real_type, kwargs, has_default)
         return
 
-    if not has_default:
-        kwargs["type"] = _str_to_bool if real_type is bool else real_type
+    effective_type: Any = (meta.converter if meta and meta.converter else None) or (
+        _str_to_bool if real_type is bool else real_type
+    )
+    is_required_named = not has_default and meta is not None and meta.required
+
+    if not has_default and not is_required_named:
+        kwargs["type"] = effective_type
         parser.add_argument(field.name, **kwargs)
         return
 
@@ -165,16 +172,19 @@ def _add_field(
         flags.insert(0, meta.short)
     kwargs["dest"] = field.name
 
-    if real_type is bool:
+    if real_type is bool and not (meta and meta.converter):
         kwargs["action"] = "store_true"
         kwargs["default"] = field.default if field.default is not dataclasses.MISSING else False
     else:
-        kwargs["type"] = real_type
-        kwargs["default"] = (
-            None
-            if resolved.is_optional
-            else (field.default if field.default is not dataclasses.MISSING else None)
-        )
+        kwargs["type"] = effective_type
+        if is_required_named:
+            kwargs["required"] = True
+        else:
+            kwargs["default"] = (
+                None
+                if resolved.is_optional
+                else (field.default if field.default is not dataclasses.MISSING else None)
+            )
 
     parser.add_argument(*flags, **kwargs)
 
