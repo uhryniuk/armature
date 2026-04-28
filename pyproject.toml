@@ -46,10 +46,8 @@ exclude=[
 ]
 
 [[tool.mypy.overrides]]
-ignore_missing_imports = "true"
-
-[[tool.mypy.overrides]]
-check_untyped_defs = "false"
+module = ["tests.*", "examples.*"]
+ignore_errors = true
 
 [tool.ruff]
 line-length = 120

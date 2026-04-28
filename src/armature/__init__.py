@@ -146,7 +146,7 @@ def _add_field(
 
     has_default = (
         field.default is not dataclasses.MISSING
-        or field.default_factory is not dataclasses.MISSING  # type: ignore[misc]
+        or field.default_factory is not dataclasses.MISSING
         or resolved.is_optional
     )
 
@@ -210,7 +210,7 @@ def _add_list_field(
 def _build_parser(parser: argparse.ArgumentParser, cls: type) -> None:
     """Populate an ArgumentParser from a dataclass's annotated fields."""
     hints = get_type_hints(cls, include_extras=True)
-    for field in dataclasses.fields(cls):  # type: ignore[arg-type]
+    for field in dataclasses.fields(cls):
         annotation = hints.get(field.name, field.type)
         resolved = _resolve_annotation(annotation)
         if resolved.is_subcmd:
@@ -239,7 +239,7 @@ def _reconstruct(cls: type, namespace: dict[str, Any]) -> Any:
     """Instantiate cls from a flat namespace dict, recursing into SubCmd fields."""
     hints = get_type_hints(cls, include_extras=True)
     init_kwargs: dict[str, Any] = {}
-    for field in dataclasses.fields(cls):  # type: ignore[arg-type]
+    for field in dataclasses.fields(cls):
         annotation = hints.get(field.name, field.type)
         resolved = _resolve_annotation(annotation)
         if resolved.is_subcmd:
