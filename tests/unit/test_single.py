@@ -284,3 +284,70 @@ def test_converter_json_loads() -> None:
 
     result = CLI(Cmd).parse(['{"key": "value"}'])
     assert result.data == {"key": "value"}
+
+
+# ---------------------------------------------------------------------------
+# T29 — environment variable fallbacks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_env_var_sets_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MY_NS", "staging")
+
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(env="MY_NS")] = "default"
+
+    assert CLI(Cmd).parse([]).namespace == "staging"
+
+
+@pytest.mark.unit
+def test_env_var_cli_flag_takes_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MY_NS", "staging")
+
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(env="MY_NS")] = "default"
+
+    assert CLI(Cmd).parse(["--namespace", "prod"]).namespace == "prod"
+
+
+@pytest.mark.unit
+def test_env_var_type_conversion(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MY_PORT", "8080")
+
+    @dataclasses.dataclass
+    class Cmd:
+        port: Annotated[int, Arg(env="MY_PORT")] = 3000
+
+    result = CLI(Cmd).parse([])
+    assert result.port == 8080
+    assert isinstance(result.port, int)
+
+
+@pytest.mark.unit
+def test_env_var_unset_falls_back_to_field_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MY_NS", raising=False)
+
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(env="MY_NS")] = "default"
+
+    assert CLI(Cmd).parse([]).namespace == "default"
+
+
+@pytest.mark.unit
+def test_env_var_help_text_annotation() -> None:
+    @dataclasses.dataclass
+    class Cmd:
+        namespace: Annotated[str, Arg(help="target namespace", env="KUBECTL_NS")] = "default"
+
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with pytest.raises(SystemExit):
+        with contextlib.redirect_stdout(buf):
+            CLI(Cmd).parse(["--help"])
+    assert "KUBECTL_NS" in buf.getvalue()

@@ -8,6 +8,7 @@ __all__ = ["CLI", "Arg", "SubCmd", "handler"]
 import argparse
 import dataclasses
 import inspect
+import os
 import types as _builtin_types
 from collections.abc import Callable
 from typing import Annotated, Any, TypeVar, Union, get_args, get_origin, get_type_hints
@@ -35,6 +36,7 @@ class Arg:
     metavar: str | None = None
     required: bool = False
     converter: Callable[[str], Any] | None = None
+    env: str | None = None
 
 
 class SubCmd:
@@ -144,8 +146,11 @@ def _add_field(
 
     kwargs: dict[str, Any] = {}
     if meta:
-        if meta.help:
-            kwargs["help"] = meta.help
+        help_text = meta.help
+        if meta.env:
+            help_text = f"{help_text} (env: {meta.env})" if help_text else f"env: {meta.env}"
+        if help_text:
+            kwargs["help"] = help_text
         if meta.choices is not None:
             kwargs["choices"] = meta.choices
         if meta.metavar:
@@ -156,6 +161,27 @@ def _add_field(
         or field.default_factory is not dataclasses.MISSING
         or resolved.is_optional
     )
+
+    env_default: Any = dataclasses.MISSING
+    if meta and meta.env:
+        raw = os.environ.get(meta.env)
+        if raw is not None:
+            if meta.converter:
+                try:
+                    env_default = meta.converter(raw)
+                except (ValueError, TypeError):
+                    env_default = raw
+            elif real_type is bool:
+                try:
+                    env_default = _str_to_bool(raw)
+                except argparse.ArgumentTypeError:
+                    env_default = raw
+            else:
+                try:
+                    env_default = real_type(raw)
+                except (ValueError, TypeError):
+                    env_default = raw
+            has_default = True
 
     if get_origin(real_type) is list:
         _add_list_field(parser, field, meta, real_type, kwargs, has_default)
@@ -179,17 +205,20 @@ def _add_field(
 
     if real_type is bool and not (meta and meta.converter):
         kwargs["action"] = "store_true"
-        kwargs["default"] = field.default if field.default is not dataclasses.MISSING else False
+        kwargs["default"] = (
+            env_default if env_default is not dataclasses.MISSING
+            else (field.default if field.default is not dataclasses.MISSING else False)
+        )
     else:
         kwargs["type"] = effective_type
         if is_required_named:
             kwargs["required"] = True
+        elif env_default is not dataclasses.MISSING:
+            kwargs["default"] = env_default
+        elif resolved.is_optional:
+            kwargs["default"] = None
         else:
-            kwargs["default"] = (
-                None
-                if resolved.is_optional
-                else (field.default if field.default is not dataclasses.MISSING else None)
-            )
+            kwargs["default"] = field.default if field.default is not dataclasses.MISSING else None
 
     parser.add_argument(*flags, **kwargs)
 
