@@ -105,6 +105,11 @@ ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+build_command = "uv lock --upgrade-package python-armature && uv build"
+tag_format = "v{version}"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=armature --cov-branch -q"
