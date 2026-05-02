@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.1 (2026-05-02)
+
+### Bug Fixes
+
+- **ci**: Set allow_zero_version to stay in 0.x.x range
+  ([`06d71c3`](https://github.com/uhryniuk/armature/commit/06d71c35ea3a4e42699d5d0ab08470efaf14651a))
+
+
 ## v1.0.0 (2026-05-02)
 
 ### Bug Fixes
