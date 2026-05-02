@@ -106,9 +106,7 @@ def _resolve_annotation(annotation: Any) -> _Resolved:
         type_args = get_args(annotation)
         non_none = [a for a in type_args if a is not type(None)]
         if len(non_none) == 1:
-            return _Resolved(
-                real_type=non_none[0], arg_meta=None, is_subcmd=False, is_optional=True
-            )
+            return _Resolved(real_type=non_none[0], arg_meta=None, is_subcmd=False, is_optional=True)
 
     return _Resolved(real_type=annotation, arg_meta=None, is_subcmd=False)
 
@@ -252,7 +250,8 @@ def _add_field(
     if real_type is bool and not (meta and meta.converter):
         kwargs["action"] = "store_true"
         kwargs["default"] = (
-            env_default if env_default is not dataclasses.MISSING
+            env_default
+            if env_default is not dataclasses.MISSING
             else (field.default if field.default is not dataclasses.MISSING else False)
         )
     else:
@@ -350,7 +349,8 @@ def _reconstruct(cls: type, namespace: dict[str, Any]) -> Any:
             dest = f"_sub_{cls.__name__.lower()}_{fld.name}"
             chosen_name = namespace.pop(dest)
             chosen_cls = next(
-                c for c in _union_members(resolved.real_type)
+                c
+                for c in _union_members(resolved.real_type)
                 if _subcmd_name(c) == chosen_name or chosen_name in _subcmd_aliases(c)
             )
             init_kwargs[fld.name] = _reconstruct(chosen_cls, namespace)
@@ -427,8 +427,7 @@ class CLI:
                 asyncio.run(retval)
             return
         raise RuntimeError(
-            f"No handler for {cls.__name__}. "
-            f"Define a run() method on {cls.__name__} or use @handler({cls.__name__})."
+            f"No handler for {cls.__name__}. Define a run() method on {cls.__name__} or use @handler({cls.__name__})."
         )
 
     def _parse_single(self, cls: type, argv: list[str] | None) -> Any:
@@ -458,7 +457,6 @@ class CLI:
         namespace = vars(root.parse_args(argv))
         chosen_name = namespace.pop("_root_cmd")
         chosen_cls = next(
-            c for c in self._commands
-            if _subcmd_name(c) == chosen_name or chosen_name in _subcmd_aliases(c)
+            c for c in self._commands if _subcmd_name(c) == chosen_name or chosen_name in _subcmd_aliases(c)
         )
         return _reconstruct(chosen_cls, namespace)
