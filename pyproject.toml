@@ -109,6 +109,7 @@ convention = "google"
 version_toml = ["pyproject.toml:project.version"]
 build_command = "uv lock --upgrade-package python-armature && uv build"
 tag_format = "v{version}"
+allow_zero_version = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
