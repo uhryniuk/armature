@@ -1,5 +1,5 @@
 [project]
-name = "armature"
+name = "python-armature"
 version = "0.1.2"
 description = "Zero-dependency dataclass-driven CLI builder for Python"
 readme = "README.md"
