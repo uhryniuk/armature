@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from importlib.metadata import version as _version
 
-__version__: str = _version("armature")
+__version__: str = _version("python-armature")
 __all__ = ["CLI", "Arg", "SubCmd", "handler", "dataclass", "field", "Annotated"]
 
 import argparse
