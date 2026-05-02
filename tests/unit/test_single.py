@@ -577,3 +577,62 @@ def test_annotated_re_export() -> None:
         verbose: Annotated[bool, Arg(short="-v")] = False
 
     assert CLI(Cmd).parse(["-v"]).verbose is True
+
+
+# ---------------------------------------------------------------------------
+# Arg action validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_arg_invalid_action_raises() -> None:
+    with pytest.raises(ValueError, match="action="):
+        Arg(action="store_false")
+
+
+@pytest.mark.unit
+def test_arg_valid_actions_accepted() -> None:
+    Arg(action="count")
+    Arg(action="append")
+    Arg(action=None)
+
+
+# ---------------------------------------------------------------------------
+# Env var conversion errors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_env_var_bad_int_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MY_PORT", "not-a-number")
+
+    @dataclasses.dataclass
+    class Cmd:
+        port: Annotated[int, Arg(env="MY_PORT")] = 3000
+
+    with pytest.raises(SystemExit, match="MY_PORT"):
+        CLI(Cmd).parse([])
+
+
+@pytest.mark.unit
+def test_env_var_bad_bool_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MY_FLAG", "notabool")
+
+    @dataclasses.dataclass
+    class Cmd:
+        flag: Annotated[bool, Arg(env="MY_FLAG")] = False
+
+    with pytest.raises(SystemExit, match="MY_FLAG"):
+        CLI(Cmd).parse([])
+
+
+@pytest.mark.unit
+def test_env_var_bad_converter_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MY_JSON", "not-valid-json")
+
+    @dataclasses.dataclass
+    class Cmd:
+        data: Annotated[str, Arg(converter=int, env="MY_JSON")] = "0"
+
+    with pytest.raises(SystemExit, match="MY_JSON"):
+        CLI(Cmd).parse([])

@@ -47,6 +47,13 @@ class Arg:
     remainder: bool = False
     action: str | None = None
 
+    _VALID_ACTIONS: dataclasses.ClassVar[frozenset[str]] = frozenset({"count", "append"})
+
+    def __post_init__(self) -> None:
+        """Validate action value."""
+        if self.action is not None and self.action not in self._VALID_ACTIONS:
+            raise ValueError(f"Arg(action={self.action!r}) is not supported; valid values: {sorted(self._VALID_ACTIONS)}")
+
 
 class SubCmd:
     """Sentinel used in Annotated[T, SubCmd] to mark a field as a subcommand dispatch point.
@@ -185,18 +192,18 @@ def _add_field(
             if meta.converter:
                 try:
                     env_default = meta.converter(raw)
-                except (ValueError, TypeError):
-                    env_default = raw
+                except Exception as exc:
+                    raise SystemExit(f"error: env var {meta.env}={raw!r} could not be converted: {exc}") from exc
             elif real_type is bool:
                 try:
                     env_default = _str_to_bool(raw)
-                except argparse.ArgumentTypeError:
-                    env_default = raw
+                except argparse.ArgumentTypeError as exc:
+                    raise SystemExit(f"error: env var {meta.env}={raw!r} could not be converted to bool: {exc}") from exc
             else:
                 try:
                     env_default = real_type(raw)
-                except (ValueError, TypeError):
-                    env_default = raw
+                except (ValueError, TypeError) as exc:
+                    raise SystemExit(f"error: env var {meta.env}={raw!r} could not be converted to {real_type.__name__}: {exc}") from exc
             has_default = True
 
     if meta and meta.remainder:
